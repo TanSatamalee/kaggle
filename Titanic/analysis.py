@@ -100,13 +100,18 @@ train['Title'] = train.Name.str.extract('\, ([A-Z][^ ]*\.)',expand=False)
 train.Title = train.Title.apply(convert_title)
 
 # Feature Engineering.
-train['Family'] = train.SibSp + train.Parch
+train['Family'] = train.SibSp + train.Parch + 1
+train['Child'] = train.Age.apply(lambda x: 1 if x < 18 else 0)
+train['Single'] = train.Family.apply(lambda x: 1 if x == 1 else 0)
+train['SmallFam'] = train.Family.apply(lambda x: 1 if x < 4 else 0)
+train['LargeFam'] = train.Family.apply(lambda x: 1 if x >= 4 else 0)
 
 # Filling Missing Values.
 train.Title = train.Title.fillna(5)
 train.Embarked = train.Embarked.fillna(2)
 ### train.Age[train.Age.isnull()] = train.Age[train.Age.isnull()].apply(fill_age_naive)
-train.Fare[train.Fare == 0] = train.Fare[train.Fare == 0].apply(fill_fare_naive)
+train.Fare[train.Fare == 0] = np.nan
+train.Fare = train.groupby("Family").transform(lambda x: x.fillna(x.median())).Fare
 train.Age = train.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
 
 # Analysis on Age
@@ -124,6 +129,21 @@ sns.boxplot('Embarked', 'Age', data=train_plot, ax=axs[1][2])
 sns.boxplot('Title', 'Age', data=train_plot, ax=axs[1][3])
 sns.boxplot('Family', 'Age', data=train_plot, ax=axs[1][4])
 
+# Analysis on Age
+fig, axs = plt.subplots(2, 5)
+fig.set_size_inches(20, 10)
+train_plot = train.dropna()[train.Fare < 300]
+sns.boxplot('Pclass', 'Fare', data=train_plot, ax=axs[0][0])
+sns.boxplot('Sex', 'Fare', data=train_plot, ax=axs[0][1])
+sns.boxplot('SibSp', 'Fare', data=train_plot, ax=axs[0][2])
+sns.boxplot('Parch', 'Fare', data=train_plot, ax=axs[0][3])
+sns.boxplot('Ticket', 'Fare', data=train_plot, ax=axs[0][4])
+sns.boxplot('Age', 'Fare', data=train_plot, ax=axs[1][0])
+sns.boxplot('Cabin', 'Fare', data=train_plot, ax=axs[1][1])
+sns.boxplot('Embarked', 'Fare', data=train_plot, ax=axs[1][2])
+sns.boxplot('Title', 'Fare', data=train_plot, ax=axs[1][3])
+sns.boxplot('Family', 'Fare', data=train_plot, ax=axs[1][4])
+
 print("Describing Data:")
 print(train.describe())
 print(train.info())
@@ -137,7 +157,7 @@ print(train.corr())
     # Negative: Survive&Pclass, Survived&Sex, Survived&Embarked, Pclass&Age, Pclass&Fare, Pclass&Title, Sex&SibSp, Sex&Parch, Sex&Fare, Sex&Title, Age&SibSp, Age&Parch, Age&Fare, Age&Title, Ticket&Fare, Fare&Embarked
 print()
 
-train_feats = ['Pclass', 'Sex', 'Title', 'Embarked', 'Family', 'Age', 'Fare', 'Cabin']
+train_feats = ['Pclass', 'Sex', 'Title', 'Embarked', 'Family', 'Age', 'Fare', 'Cabin', 'SmallFam']
 
 '''
 # Tuning Hyper Parameters.\
@@ -206,13 +226,31 @@ test.Cabin.fillna('None', inplace=True)
 test.Cabin = test.Cabin.apply(convert_cabin)
 test['Title'] = test.Name.str.extract('\, ([A-Z][^ ]*\.)',expand=False)
 test.Title = test.Title.apply(convert_title)
-test['Family'] = test.SibSp + test.Parch
+test['Family'] = test.SibSp + test.Parch + 1
+test['Child'] = test.Age.apply(lambda x: 1 if x < 18 else 0)
+test['Single'] = test.Family.apply(lambda x: 1 if x == 1 else 0)
+test['SmallFam'] = test.Family.apply(lambda x: 1 if x < 4 else 0)
+test['LargeFam'] = test.Family.apply(lambda x: 1 if x >= 4 else 0)
 test.Title = test.Title.fillna(5)
 test.Embarked = test.Embarked.fillna(2)
-test.Fare[test.Fare == 0] = test.Fare[test.Fare == 0].apply(fill_fare_naive)
-test.Fare = test.Fare.fillna(fill_fare_naive(test))
+test.Fare[test.Fare == 0] = np.nan
+test.Fare = test.groupby("Family").transform(lambda x: x.fillna(x.median())).Fare
 test.Age = test.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
 rf.fit(X, Y)
 result = rf.predict(test[train_feats])
 submit = pd.DataFrame({'PassengerId':test['PassengerId'],'Survived':result})
-submit.to_csv('trial2.csv', index=False)
+submit.to_csv('trial4.csv', index=False)
+
+
+# Feature Importance
+plt.figure()
+importance = rf.feature_importances_
+importance = pd.DataFrame(importance, index=X.columns, columns=["Importance"])
+importance["Std"] = np.std([tree.feature_importances_ for tree in rf.estimators_], axis=0)
+
+x = range(importance.shape[0])
+y = importance.iloc[:, 0]
+yerr = importance.iloc[:, 1]
+
+plt.bar(x, y, yerr=yerr, align="center")
+plt.show()
