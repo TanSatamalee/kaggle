@@ -88,6 +88,24 @@ def fill_fare_naive(x):
     sigma = train.Fare.std()
     return random.randint(math.floor(mu - sigma), math.ceil(mu + sigma))
 
+# Matching people with ticket numbers into the same group.
+def ticket_sort(x):
+    last = 0
+    n = 0
+    x['Group'] = 0
+    x_sort = x.sort_values('Ticket')
+    for i, row in x_sort.iterrows():
+        if int(row['Ticket']) - last == 0:
+            x_sort.loc[i, 'Group'] = n
+        elif int(row['Ticket']) - last == 1:
+            x_sort.loc[i, 'Group'] = n
+            last = int(row['Ticket'])
+        else:
+            n += 1
+            last = int(row['Ticket'])
+            x_sort.loc[i, 'Group'] = n
+    return x_sort
+
 ## ====================================================================
 
 # Convert as much to numeric data before continuing.
@@ -105,6 +123,10 @@ train['Child'] = train.Age.apply(lambda x: 1 if x < 18 else 0)
 train['Single'] = train.Family.apply(lambda x: 1 if x == 1 else 0)
 train['SmallFam'] = train.Family.apply(lambda x: 1 if x < 4 else 0)
 train['LargeFam'] = train.Family.apply(lambda x: 1 if x >= 4 else 0)
+train = ticket_sort(train)
+group_count = train.groupby("Group").count()
+train['GroupSize'] = train.Group.apply(lambda x: group_count['PassengerId'][x])
+
 
 # Filling Missing Values.
 train.Title = train.Title.fillna(5)
@@ -114,6 +136,9 @@ train.Fare[train.Fare == 0] = np.nan
 train.Fare = train.groupby("Family").transform(lambda x: x.fillna(x.median())).Fare
 train.Age = train.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
 
+train_feats = ['Pclass', 'Sex', 'Title', 'Embarked', 'Family', 'Age', 'Fare', 'Cabin', 'SmallFam', 'GroupSize']
+
+'''
 # Analysis on Age
 fig, axs = plt.subplots(2, 5)
 fig.set_size_inches(20, 10)
@@ -157,9 +182,7 @@ print(train.corr())
     # Negative: Survive&Pclass, Survived&Sex, Survived&Embarked, Pclass&Age, Pclass&Fare, Pclass&Title, Sex&SibSp, Sex&Parch, Sex&Fare, Sex&Title, Age&SibSp, Age&Parch, Age&Fare, Age&Title, Ticket&Fare, Fare&Embarked
 print()
 
-train_feats = ['Pclass', 'Sex', 'Title', 'Embarked', 'Family', 'Age', 'Fare', 'Cabin', 'SmallFam']
 
-'''
 # Tuning Hyper Parameters.\
 ## Folds
 print('n_estimate hypertune')
@@ -236,6 +259,9 @@ test.Embarked = test.Embarked.fillna(2)
 test.Fare[test.Fare == 0] = np.nan
 test.Fare = test.groupby("Family").transform(lambda x: x.fillna(x.median())).Fare
 test.Age = test.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
+test = ticket_sort(test)
+group_count = test.groupby("Group").count()
+test['GroupSize'] = test.Group.apply(lambda x: group_count['PassengerId'][x])
 rf.fit(X, Y)
 result = rf.predict(test[train_feats])
 submit = pd.DataFrame({'PassengerId':test['PassengerId'],'Survived':result})
