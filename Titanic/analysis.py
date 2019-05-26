@@ -83,9 +83,6 @@ def fill_age_naive(x):
     sigma = train.Age.std()
     return random.randint(math.floor(mu - sigma), math.ceil(mu + sigma))
 
-def fill_age(x):
-        
-
 def fill_fare_naive(x):
     mu = train.Fare.mean()
     sigma = train.Fare.std()
@@ -108,8 +105,24 @@ train['Family'] = train.SibSp + train.Parch
 # Filling Missing Values.
 train.Title = train.Title.fillna(5)
 train.Embarked = train.Embarked.fillna(2)
-train.Age[train.Age.isnull()] = train.Age[train.Age.isnull()].apply(fill_age_naive)
+### train.Age[train.Age.isnull()] = train.Age[train.Age.isnull()].apply(fill_age_naive)
 train.Fare[train.Fare == 0] = train.Fare[train.Fare == 0].apply(fill_fare_naive)
+train.Age = train.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
+
+# Analysis on Age
+fig, axs = plt.subplots(2, 5)
+fig.set_size_inches(20, 10)
+train_plot = train.dropna()
+sns.boxplot('Pclass', 'Age', data=train_plot, ax=axs[0][0])
+sns.boxplot('Sex', 'Age', data=train_plot, ax=axs[0][1])
+sns.boxplot('SibSp', 'Age', data=train_plot, ax=axs[0][2])
+sns.boxplot('Parch', 'Age', data=train_plot, ax=axs[0][3])
+sns.boxplot('Ticket', 'Age', data=train_plot, ax=axs[0][4])
+sns.boxplot('Fare', 'Age', data=train_plot, ax=axs[1][0])
+sns.boxplot('Cabin', 'Age', data=train_plot, ax=axs[1][1])
+sns.boxplot('Embarked', 'Age', data=train_plot, ax=axs[1][2])
+sns.boxplot('Title', 'Age', data=train_plot, ax=axs[1][3])
+sns.boxplot('Family', 'Age', data=train_plot, ax=axs[1][4])
 
 print("Describing Data:")
 print(train.describe())
@@ -196,8 +209,9 @@ test.Title = test.Title.apply(convert_title)
 test['Family'] = test.SibSp + test.Parch
 test.Title = test.Title.fillna(5)
 test.Embarked = test.Embarked.fillna(2)
-test.Age[test.Age.isnull()] = test.Age[test.Age.isnull()].apply(fill_age_naive)
-test.Fare[train.Fare == 0] = test.Fare[train.Fare == 0].apply(fill_fare_naive)
+test.Fare[test.Fare == 0] = test.Fare[test.Fare == 0].apply(fill_fare_naive)
+test.Fare = test.Fare.fillna(fill_fare_naive(test))
+test.Age = test.groupby("Title").transform(lambda x: x.fillna(x.mean())).Age
 rf.fit(X, Y)
 result = rf.predict(test[train_feats])
 submit = pd.DataFrame({'PassengerId':test['PassengerId'],'Survived':result})
